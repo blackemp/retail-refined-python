@@ -6,20 +6,15 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Minus, Search, CreditCard, DollarSign, Trash2, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
+import { useStore } from "@/hooks/useStore";
 
 const POSSystem = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [cart, setCart] = useState<any[]>([]);
   const [customerInfo, setCustomerInfo] = useState({ name: "", phone: "" });
-
-  const products = [
-    { id: 1, name: "iPhone 15 Pro", price: 999.99, stock: 15, category: "Electronics" },
-    { id: 2, name: "Samsung Galaxy S24", price: 899.99, stock: 5, category: "Electronics" },
-    { id: 3, name: "Wireless Earbuds", price: 129.99, stock: 45, category: "Accessories" },
-    { id: 4, name: "Phone Case", price: 29.99, stock: 100, category: "Accessories" },
-    { id: 5, name: "Laptop Stand", price: 59.99, stock: 25, category: "Accessories" },
-    { id: 6, name: "Bluetooth Speaker", price: 79.99, stock: 30, category: "Electronics" }
-  ];
+  
+  const store = useStore();
+  const products = store.getProducts();
 
   const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -38,7 +33,11 @@ const POSSystem = () => {
         toast.error("Not enough stock available");
       }
     } else {
-      setCart([...cart, { ...product, quantity: 1 }]);
+      if (product.stock > 0) {
+        setCart([...cart, { ...product, quantity: 1 }]);
+      } else {
+        toast.error("Product is out of stock");
+      }
     }
   };
 
@@ -82,7 +81,26 @@ const POSSystem = () => {
       return;
     }
     
-    toast.success(`Payment processed via ${paymentMethod}! Transaction completed.`);
+    // Create sale record
+    const saleData = {
+      items: cart.map(item => ({
+        product: item,
+        quantity: item.quantity,
+        total: item.price * item.quantity
+      })),
+      subtotal: getCartTotal(),
+      tax: getTax(),
+      total: getFinalTotal(),
+      customerName: customerInfo.name,
+      customerPhone: customerInfo.phone,
+      paymentMethod: paymentMethod,
+      timestamp: new Date()
+    };
+    
+    // Add sale to store (this will also update inventory)
+    const saleId = store.addSale(saleData);
+    
+    toast.success(`Payment processed via ${paymentMethod}! Sale ID: ${saleId.slice(-8)}`);
     setCart([]);
     setCustomerInfo({ name: "", phone: "" });
   };
@@ -121,11 +139,17 @@ const POSSystem = () => {
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-lg font-bold text-green-600">${product.price}</span>
-                      <span className="text-sm text-gray-500">Stock: {product.stock}</span>
+                      <span className={`text-sm ${product.stock === 0 ? 'text-red-500' : 'text-gray-500'}`}>
+                        Stock: {product.stock}
+                      </span>
                     </div>
-                    <Button className="w-full mt-3" size="sm">
+                    <Button 
+                      className="w-full mt-3" 
+                      size="sm" 
+                      disabled={product.stock === 0}
+                    >
                       <Plus className="h-4 w-4 mr-2" />
-                      Add to Cart
+                      {product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
                     </Button>
                   </CardContent>
                 </Card>

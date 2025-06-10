@@ -6,44 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Search, Edit, Trash2, Package, AlertTriangle, Download } from "lucide-react";
 import { toast } from "sonner";
+import { useStore } from "@/hooks/useStore";
 
 const InventoryManager = () => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [products, setProducts] = useState([
-    {
-      id: 1,
-      name: "iPhone 15 Pro",
-      sku: "IPH15PRO001",
-      category: "Electronics",
-      price: 999.99,
-      stock: 15,
-      lowStockThreshold: 10,
-      supplier: "Apple Inc.",
-      lastUpdated: "2024-01-15"
-    },
-    {
-      id: 2,
-      name: "Samsung Galaxy S24",
-      sku: "SGS24001",
-      category: "Electronics",
-      price: 899.99,
-      stock: 5,
-      lowStockThreshold: 10,
-      supplier: "Samsung",
-      lastUpdated: "2024-01-14"
-    },
-    {
-      id: 3,
-      name: "Wireless Earbuds",
-      sku: "WEB001",
-      category: "Accessories",
-      price: 129.99,
-      stock: 45,
-      lowStockThreshold: 20,
-      supplier: "TechCorp",
-      lastUpdated: "2024-01-13"
-    }
-  ]);
+  const store = useStore();
+  const products = store.getProducts();
 
   const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -51,19 +19,52 @@ const InventoryManager = () => {
   );
 
   const handleAddProduct = () => {
-    toast.success("Add Product dialog would open here");
+    const newProduct = {
+      name: "New Product",
+      sku: `SKU${Date.now()}`,
+      category: "General",
+      price: 0,
+      stock: 0,
+      lowStockThreshold: 10,
+      supplier: "Unknown",
+      lastUpdated: new Date().toISOString().split('T')[0]
+    };
+    store.addProduct(newProduct);
+    toast.success("Product added successfully");
   };
 
   const handleEditProduct = (productId: number) => {
-    toast.info(`Edit product ${productId}`);
+    const newStock = prompt("Enter new stock quantity:");
+    if (newStock && !isNaN(Number(newStock))) {
+      const currentProduct = products.find(p => p.id === productId);
+      if (currentProduct) {
+        const difference = Number(newStock) - currentProduct.stock;
+        store.updateStock(productId, difference);
+        toast.success("Stock updated successfully");
+      }
+    }
   };
 
   const handleDeleteProduct = (productId: number) => {
-    setProducts(products.filter(p => p.id !== productId));
-    toast.success("Product deleted successfully");
+    if (confirm("Are you sure you want to delete this product?")) {
+      store.deleteProduct(productId);
+      toast.success("Product deleted successfully");
+    }
   };
 
   const handleExportInventory = () => {
+    const csvContent = [
+      "Name,SKU,Category,Price,Stock,Low Stock Threshold,Supplier,Last Updated",
+      ...products.map(p => `${p.name},${p.sku},${p.category},${p.price},${p.stock},${p.lowStockThreshold},${p.supplier},${p.lastUpdated}`)
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'inventory.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
     toast.success("Inventory exported to CSV successfully!");
   };
 
@@ -72,6 +73,9 @@ const InventoryManager = () => {
     if (stock <= threshold) return { status: "Low Stock", color: "bg-yellow-500" };
     return { status: "In Stock", color: "bg-green-500" };
   };
+
+  const lowStockCount = products.filter(p => p.stock <= p.lowStockThreshold && p.stock > 0).length;
+  const outOfStockCount = products.filter(p => p.stock === 0).length;
 
   return (
     <div className="space-y-6">
@@ -127,9 +131,7 @@ const InventoryManager = () => {
               <AlertTriangle className="h-8 w-8 text-yellow-600" />
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Low Stock Items</p>
-                <p className="text-2xl font-bold">
-                  {products.filter(p => p.stock <= p.lowStockThreshold && p.stock > 0).length}
-                </p>
+                <p className="text-2xl font-bold">{lowStockCount}</p>
               </div>
             </div>
           </CardContent>
@@ -143,9 +145,7 @@ const InventoryManager = () => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Out of Stock</p>
-                <p className="text-2xl font-bold">
-                  {products.filter(p => p.stock === 0).length}
-                </p>
+                <p className="text-2xl font-bold">{outOfStockCount}</p>
               </div>
             </div>
           </CardContent>

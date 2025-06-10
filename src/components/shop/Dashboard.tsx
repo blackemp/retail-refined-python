@@ -1,31 +1,23 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DollarSign, Package, ShoppingCart, Users, TrendingUp, TrendingDown, AlertTriangle } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { useStore } from "@/hooks/useStore";
 
 const Dashboard = () => {
-  // Sample data - in real app this would come from your backend
-  const salesData = [
-    { name: 'Mon', sales: 4000, profit: 2400 },
-    { name: 'Tue', sales: 3000, profit: 1398 },
-    { name: 'Wed', sales: 2000, profit: 9800 },
-    { name: 'Thu', sales: 2780, profit: 3908 },
-    { name: 'Fri', sales: 1890, profit: 4800 },
-    { name: 'Sat', sales: 2390, profit: 3800 },
-    { name: 'Sun', sales: 3490, profit: 4300 },
-  ];
+  const store = useStore();
+  
+  const totalRevenue = store.getTotalRevenue();
+  const totalProducts = store.getProducts().length;
+  const totalOrders = store.getTotalOrders();
+  const activeUsers = store.getUsers().filter(u => u.status === 'active').length;
+  const lowStockItems = store.getLowStockProducts();
+  const topProducts = store.getTopSellingProducts();
+  const salesData = store.getSalesData(7);
 
   const productCategories = [
-    { name: 'Electronics', value: 400, color: '#8884d8' },
-    { name: 'Clothing', value: 300, color: '#82ca9d' },
-    { name: 'Books', value: 200, color: '#ffc658' },
-    { name: 'Food', value: 100, color: '#ff7c7c' },
-  ];
-
-  const lowStockItems = [
-    { name: 'iPhone 15', stock: 5, critical: true },
-    { name: 'Laptop Stand', stock: 8, critical: false },
-    { name: 'Wireless Mouse', stock: 3, critical: true },
+    { name: 'Electronics', value: store.getProducts().filter(p => p.category === 'Electronics').length, color: '#8884d8' },
+    { name: 'Accessories', value: store.getProducts().filter(p => p.category === 'Accessories').length, color: '#82ca9d' },
   ];
 
   return (
@@ -38,10 +30,10 @@ const Dashboard = () => {
             <DollarSign className="h-4 w-4 opacity-90" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$45,231</div>
+            <div className="text-2xl font-bold">${totalRevenue.toFixed(2)}</div>
             <p className="text-xs opacity-90 flex items-center mt-1">
               <TrendingUp className="h-3 w-3 mr-1" />
-              +20.1% from last month
+              Live data from sales
             </p>
           </CardContent>
         </Card>
@@ -52,10 +44,10 @@ const Dashboard = () => {
             <Package className="h-4 w-4 opacity-90" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">2,350</div>
+            <div className="text-2xl font-bold">{totalProducts}</div>
             <p className="text-xs opacity-90 flex items-center mt-1">
               <TrendingUp className="h-3 w-3 mr-1" />
-              +180 new items
+              Active inventory
             </p>
           </CardContent>
         </Card>
@@ -66,10 +58,10 @@ const Dashboard = () => {
             <ShoppingCart className="h-4 w-4 opacity-90" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">12,234</div>
+            <div className="text-2xl font-bold">{totalOrders}</div>
             <p className="text-xs opacity-90 flex items-center mt-1">
               <TrendingUp className="h-3 w-3 mr-1" />
-              +19% from last month
+              Completed transactions
             </p>
           </CardContent>
         </Card>
@@ -80,10 +72,10 @@ const Dashboard = () => {
             <Users className="h-4 w-4 opacity-90" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">573</div>
+            <div className="text-2xl font-bold">{activeUsers}</div>
             <p className="text-xs opacity-90 flex items-center mt-1">
-              <TrendingDown className="h-3 w-3 mr-1" />
-              -2% from last month
+              <TrendingUp className="h-3 w-3 mr-1" />
+              Registered users
             </p>
           </CardContent>
         </Card>
@@ -93,17 +85,17 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Sales Overview</CardTitle>
+            <CardTitle>Sales Overview (Last 7 Days)</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={salesData}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
+                <XAxis dataKey="date" />
                 <YAxis />
                 <Tooltip />
                 <Line type="monotone" dataKey="sales" stroke="#8884d8" strokeWidth={2} />
-                <Line type="monotone" dataKey="profit" stroke="#82ca9d" strokeWidth={2} />
+                <Line type="monotone" dataKey="orders" stroke="#82ca9d" strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
@@ -137,7 +129,7 @@ const Dashboard = () => {
         </Card>
       </div>
 
-      {/* Alerts and Recent Activity */}
+      {/* Alerts and Top Products */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
@@ -148,45 +140,51 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {lowStockItems.map((item, index) => (
-                <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
-                  <div>
-                    <p className="font-medium">{item.name}</p>
-                    <p className="text-sm text-gray-600">Stock: {item.stock} units</p>
+              {lowStockItems.length === 0 ? (
+                <p className="text-gray-500">No low stock items</p>
+              ) : (
+                lowStockItems.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
+                    <div>
+                      <p className="font-medium">{item.name}</p>
+                      <p className="text-sm text-gray-600">Stock: {item.stock} units</p>
+                    </div>
+                    <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      item.stock === 0 ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {item.stock === 0 ? 'Out of Stock' : 'Low Stock'}
+                    </div>
                   </div>
-                  <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    item.critical ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'
-                  }`}>
-                    {item.critical ? 'Critical' : 'Low'}
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
+            <CardTitle>Top Selling Products</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-4">
-              <button className="p-4 bg-blue-50 hover:bg-blue-100 rounded-lg text-center transition-colors">
-                <Package className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-                <p className="text-sm font-medium">Add Product</p>
-              </button>
-              <button className="p-4 bg-green-50 hover:bg-green-100 rounded-lg text-center transition-colors">
-                <ShoppingCart className="h-8 w-8 text-green-600 mx-auto mb-2" />
-                <p className="text-sm font-medium">New Sale</p>
-              </button>
-              <button className="p-4 bg-purple-50 hover:bg-purple-100 rounded-lg text-center transition-colors">
-                <Users className="h-8 w-8 text-purple-600 mx-auto mb-2" />
-                <p className="text-sm font-medium">Add User</p>
-              </button>
-              <button className="p-4 bg-orange-50 hover:bg-orange-100 rounded-lg text-center transition-colors">
-                <TrendingUp className="h-8 w-8 text-orange-600 mx-auto mb-2" />
-                <p className="text-sm font-medium">View Reports</p>
-              </button>
+            <div className="space-y-3">
+              {topProducts.length === 0 ? (
+                <p className="text-gray-500">No sales data yet</p>
+              ) : (
+                topProducts.map((item, index) => (
+                  <div key={item.product.id} className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
+                    <div className="flex items-center">
+                      <div className="bg-indigo-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-3">
+                        {index + 1}
+                      </div>
+                      <div>
+                        <p className="font-medium">{item.product.name}</p>
+                        <p className="text-sm text-gray-600">{item.quantitySold} units sold</p>
+                      </div>
+                    </div>
+                    <p className="font-bold text-green-600">${item.revenue.toFixed(2)}</p>
+                  </div>
+                ))
+              )}
             </div>
           </CardContent>
         </Card>

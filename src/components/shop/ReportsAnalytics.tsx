@@ -2,49 +2,75 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Download, TrendingUp, DollarSign, ShoppingCart, Users, Calendar } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area } from "recharts";
 import { toast } from "sonner";
+import { useStore } from "@/hooks/useStore";
 
 const ReportsAnalytics = () => {
   const [selectedPeriod, setSelectedPeriod] = useState("7days");
-
-  // Sample data - in real app this would come from your backend
-  const salesData = [
-    { date: '2024-01-01', sales: 4000, orders: 120, customers: 45 },
-    { date: '2024-01-02', sales: 3000, orders: 98, customers: 38 },
-    { date: '2024-01-03', sales: 5000, orders: 145, customers: 52 },
-    { date: '2024-01-04', sales: 2780, orders: 89, customers: 34 },
-    { date: '2024-01-05', sales: 1890, orders: 67, customers: 28 },
-    { date: '2024-01-06', sales: 2390, orders: 78, customers: 31 },
-    { date: '2024-01-07', sales: 3490, orders: 112, customers: 41 },
-  ];
-
-  const topProducts = [
-    { name: 'iPhone 15 Pro', sales: 45, revenue: 44995 },
-    { name: 'Samsung Galaxy S24', sales: 32, revenue: 28800 },
-    { name: 'Wireless Earbuds', sales: 78, revenue: 10140 },
-    { name: 'Phone Case', sales: 156, revenue: 4680 },
-    { name: 'Laptop Stand', sales: 23, revenue: 1380 },
-  ];
+  const store = useStore();
+  
+  const totalRevenue = store.getTotalRevenue();
+  const totalOrders = store.getTotalOrders();
+  const averageOrderValue = store.getAverageOrderValue();
+  const activeUsers = store.getUsers().filter(u => u.status === 'active').length;
+  const topProducts = store.getTopSellingProducts();
+  const salesData = store.getSalesData(selectedPeriod === '7days' ? 7 : selectedPeriod === '30days' ? 30 : 90);
 
   const salesByCategory = [
-    { name: 'Electronics', value: 65, color: '#8884d8' },
-    { name: 'Accessories', value: 25, color: '#82ca9d' },
-    { name: 'Cases & Covers', value: 10, color: '#ffc658' },
-  ];
-
-  const monthlyRevenue = [
-    { month: 'Jan', revenue: 45000, target: 50000 },
-    { month: 'Feb', revenue: 52000, target: 50000 },
-    { month: 'Mar', revenue: 48000, target: 50000 },
-    { month: 'Apr', revenue: 61000, target: 50000 },
-    { month: 'May', revenue: 55000, target: 50000 },
-    { month: 'Jun', revenue: 67000, target: 50000 },
+    { 
+      name: 'Electronics', 
+      value: store.getSales().reduce((acc, sale) => {
+        return acc + sale.items
+          .filter(item => item.product.category === 'Electronics')
+          .reduce((sum, item) => sum + item.total, 0);
+      }, 0), 
+      color: '#8884d8' 
+    },
+    { 
+      name: 'Accessories', 
+      value: store.getSales().reduce((acc, sale) => {
+        return acc + sale.items
+          .filter(item => item.product.category === 'Accessories')
+          .reduce((sum, item) => sum + item.total, 0);
+      }, 0), 
+      color: '#82ca9d' 
+    },
   ];
 
   const handleExportReport = (reportType: string) => {
+    if (reportType === 'Sales') {
+      const sales = store.getSales();
+      const csvContent = [
+        "Sale ID,Date,Customer,Items,Subtotal,Tax,Total,Payment Method",
+        ...sales.map(sale => 
+          `${sale.id},${sale.timestamp.toISOString()},${sale.customerName},${sale.items.length},${sale.subtotal},${sale.tax},${sale.total},${sale.paymentMethod}`
+        )
+      ].join('\n');
+      
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'sales_report.csv';
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } else if (reportType === 'Inventory') {
+      const products = store.getProducts();
+      const csvContent = [
+        "Name,SKU,Category,Price,Stock,Low Stock Threshold,Supplier,Last Updated",
+        ...products.map(p => `${p.name},${p.sku},${p.category},${p.price},${p.stock},${p.lowStockThreshold},${p.supplier},${p.lastUpdated}`)
+      ].join('\n');
+      
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'inventory_report.csv';
+      a.click();
+      window.URL.revokeObjectURL(url);
+    }
     toast.success(`${reportType} report exported successfully!`);
   };
 
@@ -85,8 +111,7 @@ const ReportsAnalytics = () => {
               {[
                 { value: '7days', label: 'Last 7 Days' },
                 { value: '30days', label: 'Last 30 Days' },
-                { value: '90days', label: 'Last 90 Days' },
-                { value: 'year', label: 'This Year' }
+                { value: '90days', label: 'Last 90 Days' }
               ].map((period) => (
                 <Button
                   key={period.value}
@@ -109,10 +134,10 @@ const ReportsAnalytics = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm opacity-90">Total Revenue</p>
-                <p className="text-2xl font-bold">$124,563</p>
+                <p className="text-2xl font-bold">{formatCurrency(totalRevenue)}</p>
                 <p className="text-xs opacity-90 flex items-center mt-1">
                   <TrendingUp className="h-3 w-3 mr-1" />
-                  +12.5% vs last period
+                  Live data from sales
                 </p>
               </div>
               <DollarSign className="h-8 w-8 opacity-80" />
@@ -125,10 +150,10 @@ const ReportsAnalytics = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm opacity-90">Total Orders</p>
-                <p className="text-2xl font-bold">1,234</p>
+                <p className="text-2xl font-bold">{totalOrders}</p>
                 <p className="text-xs opacity-90 flex items-center mt-1">
                   <TrendingUp className="h-3 w-3 mr-1" />
-                  +8.2% vs last period
+                  Completed transactions
                 </p>
               </div>
               <ShoppingCart className="h-8 w-8 opacity-80" />
@@ -141,10 +166,10 @@ const ReportsAnalytics = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm opacity-90">Avg Order Value</p>
-                <p className="text-2xl font-bold">$101.02</p>
+                <p className="text-2xl font-bold">{formatCurrency(averageOrderValue)}</p>
                 <p className="text-xs opacity-90 flex items-center mt-1">
                   <TrendingUp className="h-3 w-3 mr-1" />
-                  +3.8% vs last period
+                  Per transaction
                 </p>
               </div>
               <div className="h-8 w-8 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
@@ -158,11 +183,11 @@ const ReportsAnalytics = () => {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm opacity-90">New Customers</p>
-                <p className="text-2xl font-bold">89</p>
+                <p className="text-sm opacity-90">Active Users</p>
+                <p className="text-2xl font-bold">{activeUsers}</p>
                 <p className="text-xs opacity-90 flex items-center mt-1">
                   <TrendingUp className="h-3 w-3 mr-1" />
-                  +15.3% vs last period
+                  Registered users
                 </p>
               </div>
               <Users className="h-8 w-8 opacity-80" />
@@ -201,7 +226,7 @@ const ReportsAnalytics = () => {
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={salesByCategory}
+                  data={salesByCategory.filter(item => item.value > 0)}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
@@ -214,135 +239,96 @@ const ReportsAnalytics = () => {
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip />
+                <Tooltip formatter={(value: any) => formatCurrency(value)} />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
 
-      {/* Charts Row 2 */}
+      {/* Top Products and Financial Summary */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Monthly Revenue vs Target</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={monthlyRevenue}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip formatter={(value: any) => formatCurrency(value)} />
-                <Bar dataKey="revenue" fill="#8884d8" name="Revenue" />
-                <Bar dataKey="target" fill="#82ca9d" name="Target" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
         <Card>
           <CardHeader>
             <CardTitle>Top Selling Products</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {topProducts.map((product, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center">
-                    <div className="bg-indigo-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">
-                      {index + 1}
+              {topProducts.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">No sales data available yet</p>
+              ) : (
+                topProducts.map((product, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center">
+                      <div className="bg-indigo-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">
+                        {index + 1}
+                      </div>
+                      <div>
+                        <p className="font-medium">{product.product.name}</p>
+                        <p className="text-sm text-gray-600">{product.quantitySold} units sold</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium">{product.name}</p>
-                      <p className="text-sm text-gray-600">{product.sales} units sold</p>
+                    <div className="text-right">
+                      <p className="font-bold text-green-600">{formatCurrency(product.revenue)}</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-bold text-green-600">{formatCurrency(product.revenue)}</p>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Financial Summary</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <h4 className="font-medium text-gray-600">Revenue Breakdown</h4>
+                <div className="space-y-1">
+                  <div className="flex justify-between">
+                    <span>Gross Sales:</span>
+                    <span className="font-medium">{formatCurrency(totalRevenue)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Tax Collected:</span>
+                    <span className="font-medium text-green-600">
+                      {formatCurrency(store.getSales().reduce((acc, sale) => acc + sale.tax, 0))}
+                    </span>
+                  </div>
+                  <div className="flex justify-between font-bold border-t pt-1">
+                    <span>Net Sales:</span>
+                    <span>{formatCurrency(store.getSales().reduce((acc, sale) => acc + sale.subtotal, 0))}</span>
                   </div>
                 </div>
-              ))}
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="font-medium text-gray-600">Order Statistics</h4>
+                <div className="space-y-1">
+                  <div className="flex justify-between">
+                    <span>Total Orders:</span>
+                    <span className="font-medium">{totalOrders}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Average Order:</span>
+                    <span className="font-medium">{formatCurrency(averageOrderValue)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Items Sold:</span>
+                    <span className="font-medium">
+                      {store.getSales().reduce((acc, sale) => 
+                        acc + sale.items.reduce((sum, item) => sum + item.quantity, 0), 0
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
       </div>
-
-      {/* Financial Summary */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Financial Summary</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="space-y-2">
-              <h4 className="font-medium text-gray-600">Revenue Breakdown</h4>
-              <div className="space-y-1">
-                <div className="flex justify-between">
-                  <span>Gross Sales:</span>
-                  <span className="font-medium">$124,563</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Returns:</span>
-                  <span className="font-medium text-red-600">-$2,341</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Discounts:</span>
-                  <span className="font-medium text-orange-600">-$1,890</span>
-                </div>
-                <div className="flex justify-between font-bold border-t pt-1">
-                  <span>Net Sales:</span>
-                  <span>$120,332</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <h4 className="font-medium text-gray-600">Costs & Expenses</h4>
-              <div className="space-y-1">
-                <div className="flex justify-between">
-                  <span>Cost of Goods:</span>
-                  <span className="font-medium">$72,199</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Operating Costs:</span>
-                  <span className="font-medium">$8,500</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Taxes:</span>
-                  <span className="font-medium">$4,815</span>
-                </div>
-                <div className="flex justify-between font-bold border-t pt-1">
-                  <span>Total Costs:</span>
-                  <span>$85,514</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <h4 className="font-medium text-gray-600">Profit Analysis</h4>
-              <div className="space-y-1">
-                <div className="flex justify-between">
-                  <span>Gross Profit:</span>
-                  <span className="font-medium text-green-600">$48,133</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Net Profit:</span>
-                  <span className="font-medium text-green-600">$34,818</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Profit Margin:</span>
-                  <span className="font-medium">28.9%</span>
-                </div>
-                <div className="flex justify-between font-bold border-t pt-1">
-                  <span>ROI:</span>
-                  <span className="text-green-600">40.7%</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 };
