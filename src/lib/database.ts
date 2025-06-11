@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 export interface Product {
@@ -42,6 +41,34 @@ export interface User {
   status: 'active' | 'inactive';
   last_login: string | null;
   created_at: string;
+}
+
+export interface Invoice {
+  id: string;
+  invoice_number: string;
+  customer_name: string;
+  customer_email: string | null;
+  customer_phone: string | null;
+  customer_address: string | null;
+  subtotal: number;
+  tax: number;
+  total: number;
+  status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+  due_date: string | null;
+  issue_date: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface InvoiceItem {
+  id: string;
+  invoice_id: string;
+  product_id: number | null;
+  product_name: string;
+  quantity: number;
+  price: number;
+  total: number;
 }
 
 class DatabaseService {
@@ -271,6 +298,153 @@ class DatabaseService {
     
     if (error) {
       console.error('Error deleting user:', error);
+      throw error;
+    }
+  }
+
+  // Invoices
+  async getInvoices(): Promise<Invoice[]> {
+    const { data, error } = await supabase
+      .from('invoices')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error('Error fetching invoices:', error);
+      throw error;
+    }
+    
+    return data || [];
+  }
+
+  async getInvoiceById(id: string): Promise<Invoice | null> {
+    const { data, error } = await supabase
+      .from('invoices')
+      .select('*')
+      .eq('id', id)
+      .single();
+    
+    if (error) {
+      console.error('Error fetching invoice:', error);
+      return null;
+    }
+    
+    return data;
+  }
+
+  async getInvoiceItems(invoiceId: string): Promise<InvoiceItem[]> {
+    const { data, error } = await supabase
+      .from('invoice_items')
+      .select('*')
+      .eq('invoice_id', invoiceId);
+    
+    if (error) {
+      console.error('Error fetching invoice items:', error);
+      throw error;
+    }
+    
+    return data || [];
+  }
+
+  async createInvoice(invoiceData: {
+    customer_name: string;
+    customer_email?: string;
+    customer_phone?: string;
+    customer_address?: string;
+    items: Array<{
+      product_id?: number;
+      product_name: string;
+      quantity: number;
+      price: number;
+      total: number;
+    }>;
+    subtotal: number;
+    tax: number;
+    total: number;
+    due_date?: string;
+    notes?: string;
+  }): Promise<string> {
+    // Generate invoice number
+    const { data: invoiceNumber, error: numberError } = await supabase
+      .rpc('generate_invoice_number');
+    
+    if (numberError) {
+      console.error('Error generating invoice number:', numberError);
+      throw numberError;
+    }
+
+    // Create invoice
+    const { data: invoice, error: invoiceError } = await supabase
+      .from('invoices')
+      .insert([{
+        invoice_number: invoiceNumber,
+        customer_name: invoiceData.customer_name,
+        customer_email: invoiceData.customer_email || null,
+        customer_phone: invoiceData.customer_phone || null,
+        customer_address: invoiceData.customer_address || null,
+        subtotal: invoiceData.subtotal,
+        tax: invoiceData.tax,
+        total: invoiceData.total,
+        due_date: invoiceData.due_date || null,
+        notes: invoiceData.notes || null
+      }])
+      .select()
+      .single();
+
+    if (invoiceError) {
+      console.error('Error creating invoice:', invoiceError);
+      throw invoiceError;
+    }
+
+    // Add invoice items
+    const invoiceItems = invoiceData.items.map(item => ({
+      invoice_id: invoice.id,
+      product_id: item.product_id || null,
+      product_name: item.product_name,
+      quantity: item.quantity,
+      price: item.price,
+      total: item.total
+    }));
+
+    const { error: itemsError } = await supabase
+      .from('invoice_items')
+      .insert(invoiceItems);
+
+    if (itemsError) {
+      console.error('Error adding invoice items:', itemsError);
+      throw itemsError;
+    }
+
+    return invoice.id;
+  }
+
+  async updateInvoiceStatus(id: string, status: Invoice['status']): Promise<Invoice> {
+    const { data, error } = await supabase
+      .from('invoices')
+      .update({ 
+        status,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Error updating invoice status:', error);
+      throw error;
+    }
+    
+    return data;
+  }
+
+  async deleteInvoice(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('invoices')
+      .delete()
+      .eq('id', id);
+    
+    if (error) {
+      console.error('Error deleting invoice:', error);
       throw error;
     }
   }

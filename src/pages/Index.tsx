@@ -3,13 +3,14 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, Package, ShoppingCart, Users, BarChart3, Settings, DollarSign, TrendingUp } from "lucide-react";
+import { Download, Package, ShoppingCart, Users, BarChart3, Settings, DollarSign, TrendingUp, FileText } from "lucide-react";
 import { toast } from "sonner";
 import Dashboard from "@/components/shop/Dashboard";
 import InventoryManager from "@/components/shop/InventoryManager";
 import POSSystem from "@/components/shop/POSSystem";
 import UserManager from "@/components/shop/UserManager";
 import ReportsAnalytics from "@/components/shop/ReportsAnalytics";
+import InvoiceManager from "@/components/shop/InvoiceManager";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -50,7 +51,7 @@ const Index = () => {
       {/* Main Content */}
       <div className="container mx-auto px-6 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5 mb-8 bg-white p-1 rounded-lg shadow-lg">
+          <TabsList className="grid w-full grid-cols-6 mb-8 bg-white p-1 rounded-lg shadow-lg">
             <TabsTrigger value="dashboard" className="flex items-center space-x-2 data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
               <BarChart3 className="h-4 w-4" />
               <span>Dashboard</span>
@@ -62,6 +63,10 @@ const Index = () => {
             <TabsTrigger value="pos" className="flex items-center space-x-2 data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
               <DollarSign className="h-4 w-4" />
               <span>POS</span>
+            </TabsTrigger>
+            <TabsTrigger value="invoices" className="flex items-center space-x-2 data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
+              <FileText className="h-4 w-4" />
+              <span>Invoices</span>
             </TabsTrigger>
             <TabsTrigger value="users" className="flex items-center space-x-2 data-[state=active]:bg-indigo-600 data-[state=active]:text-white">
               <Users className="h-4 w-4" />
@@ -83,6 +88,10 @@ const Index = () => {
           
           <TabsContent value="pos">
             <POSSystem />
+          </TabsContent>
+          
+          <TabsContent value="invoices">
+            <InvoiceManager />
           </TabsContent>
           
           <TabsContent value="users">

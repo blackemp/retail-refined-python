@@ -1,25 +1,27 @@
-
 import { useEffect, useState } from 'react';
-import { database, Product, Sale, User } from '@/lib/database';
+import { database, Product, Sale, User, Invoice } from '@/lib/database';
 
 export const useDatabase = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
 
   const refreshData = async () => {
     try {
       setLoading(true);
-      const [productsData, salesData, usersData] = await Promise.all([
+      const [productsData, salesData, usersData, invoicesData] = await Promise.all([
         database.getProducts(),
         database.getSales(),
-        database.getUsers()
+        database.getUsers(),
+        database.getInvoices()
       ]);
       
       setProducts(productsData);
       setSales(salesData);
       setUsers(usersData);
+      setInvoices(invoicesData);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -127,6 +129,41 @@ export const useDatabase = () => {
     }
   };
 
+  // Invoices
+  const createInvoice = async (invoiceData: Parameters<typeof database.createInvoice>[0]) => {
+    try {
+      const invoiceId = await database.createInvoice(invoiceData);
+      await refreshData();
+      return invoiceId;
+    } catch (error) {
+      console.error('Error creating invoice:', error);
+      throw error;
+    }
+  };
+
+  const updateInvoiceStatus = async (id: string, status: Invoice['status']) => {
+    try {
+      await database.updateInvoiceStatus(id, status);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating invoice status:', error);
+      throw error;
+    }
+  };
+
+  const deleteInvoice = async (id: string) => {
+    try {
+      await database.deleteInvoice(id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error deleting invoice:', error);
+      throw error;
+    }
+  };
+
+  const getInvoiceById = (id: string) => database.getInvoiceById(id);
+  const getInvoiceItems = (invoiceId: string) => database.getInvoiceItems(invoiceId);
+
   // Analytics
   const getTotalRevenue = () => database.getTotalRevenue();
   const getTotalOrders = () => database.getTotalOrders();
@@ -139,6 +176,7 @@ export const useDatabase = () => {
     products,
     sales,
     users,
+    invoices,
     loading,
     
     // Actions
@@ -151,6 +189,13 @@ export const useDatabase = () => {
     addUser,
     updateUser,
     deleteUser,
+    
+    // Invoice actions
+    createInvoice,
+    updateInvoiceStatus,
+    deleteInvoice,
+    getInvoiceById,
+    getInvoiceItems,
     
     // Analytics
     getTotalRevenue,
