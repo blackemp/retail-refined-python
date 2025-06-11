@@ -6,56 +6,71 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Search, Edit, Trash2, Package, AlertTriangle, Download } from "lucide-react";
 import { toast } from "sonner";
-import { useStore } from "@/hooks/useStore";
+import { useDatabase } from "@/hooks/useDatabase";
 
 const InventoryManager = () => {
   const [searchTerm, setSearchTerm] = useState("");
-  const store = useStore();
-  const products = store.getProducts();
+  const { 
+    products, 
+    loading, 
+    addProduct, 
+    updateProduct, 
+    deleteProduct, 
+    updateStock,
+    getLowStockProducts,
+    getOutOfStockProducts 
+  } = useDatabase();
 
   const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     product.sku.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleAddProduct = () => {
-    const newProduct = {
-      name: "New Product",
-      sku: `SKU${Date.now()}`,
-      category: "General",
-      price: 0,
-      stock: 0,
-      lowStockThreshold: 10,
-      supplier: "Unknown",
-      lastUpdated: new Date().toISOString().split('T')[0]
-    };
-    store.addProduct(newProduct);
-    toast.success("Product added successfully");
+  const handleAddProduct = async () => {
+    try {
+      const newProduct = {
+        name: "New Product",
+        sku: `SKU${Date.now()}`,
+        category: "General",
+        price: 0,
+        stock: 0,
+        low_stock_threshold: 10,
+        supplier: "Unknown"
+      };
+      await addProduct(newProduct);
+      toast.success("Product added successfully");
+    } catch (error) {
+      toast.error("Failed to add product");
+    }
   };
 
-  const handleEditProduct = (productId: number) => {
+  const handleEditProduct = async (productId: number) => {
     const newStock = prompt("Enter new stock quantity:");
     if (newStock && !isNaN(Number(newStock))) {
-      const currentProduct = products.find(p => p.id === productId);
-      if (currentProduct) {
-        const difference = Number(newStock) - currentProduct.stock;
-        store.updateStock(productId, difference);
+      try {
+        await updateStock(productId, Number(newStock));
         toast.success("Stock updated successfully");
+      } catch (error) {
+        toast.error("Failed to update stock");
       }
     }
   };
 
-  const handleDeleteProduct = (productId: number) => {
+  const handleDeleteProduct = async (productId: number) => {
     if (confirm("Are you sure you want to delete this product?")) {
-      store.deleteProduct(productId);
-      toast.success("Product deleted successfully");
+      try {
+        await deleteProduct(productId);
+        toast.success("Product deleted successfully");
+      } catch (error) {
+        toast.error("Failed to delete product");
+      }
     }
   };
 
   const handleExportInventory = () => {
     const csvContent = [
       "Name,SKU,Category,Price,Stock,Low Stock Threshold,Supplier,Last Updated",
-      ...products.map(p => `${p.name},${p.sku},${p.category},${p.price},${p.stock},${p.lowStockThreshold},${p.supplier},${p.lastUpdated}`)
+      ...products.map(p => `${p.name},${p.sku},${p.category},${p.price},${p.stock},${p.low_stock_threshold},${p.supplier},${p.last_updated}`)
     ].join('\n');
     
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -74,7 +89,15 @@ const InventoryManager = () => {
     return { status: "In Stock", color: "bg-green-500" };
   };
 
-  const lowStockCount = products.filter(p => p.stock <= p.lowStockThreshold && p.stock > 0).length;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-lg">Loading inventory...</div>
+      </div>
+    );
+  }
+
+  const lowStockCount = products.filter(p => p.stock <= p.low_stock_threshold && p.stock > 0).length;
   const outOfStockCount = products.filter(p => p.stock === 0).length;
 
   return (
@@ -173,7 +196,7 @@ const InventoryManager = () => {
               </thead>
               <tbody>
                 {filteredProducts.map((product) => {
-                  const stockStatus = getStockStatus(product.stock, product.lowStockThreshold);
+                  const stockStatus = getStockStatus(product.stock, product.low_stock_threshold);
                   return (
                     <tr key={product.id} className="border-b hover:bg-gray-50">
                       <td className="p-4">

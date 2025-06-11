@@ -6,21 +6,25 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Minus, Search, CreditCard, DollarSign, Trash2, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
-import { useStore } from "@/hooks/useStore";
+import { useDatabase } from "@/hooks/useDatabase";
+import { Product } from "@/lib/database";
+
+interface CartItem extends Product {
+  quantity: number;
+}
 
 const POSSystem = () => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [cart, setCart] = useState<any[]>([]);
+  const [cart, setCart] = useState<CartItem[]>([]);
   const [customerInfo, setCustomerInfo] = useState({ name: "", phone: "" });
   
-  const store = useStore();
-  const products = store.getProducts();
+  const { products, loading, addSale } = useDatabase();
 
   const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const addToCart = (product: any) => {
+  const addToCart = (product: Product) => {
     const existingItem = cart.find(item => item.id === product.id);
     if (existingItem) {
       if (existingItem.quantity < product.stock) {
@@ -75,40 +79,52 @@ const POSSystem = () => {
     return getCartTotal() + getTax();
   };
 
-  const handleCheckout = (paymentMethod: string) => {
+  const handleCheckout = async (paymentMethod: string) => {
     if (cart.length === 0) {
       toast.error("Cart is empty");
       return;
     }
     
-    // Create sale record
-    const saleData = {
-      items: cart.map(item => ({
-        product: item,
-        quantity: item.quantity,
-        total: item.price * item.quantity
-      })),
-      subtotal: getCartTotal(),
-      tax: getTax(),
-      total: getFinalTotal(),
-      customerName: customerInfo.name,
-      customerPhone: customerInfo.phone,
-      paymentMethod: paymentMethod,
-      timestamp: new Date()
-    };
-    
-    // Add sale to store (this will also update inventory)
-    const saleId = store.addSale(saleData);
-    
-    toast.success(`Payment processed via ${paymentMethod}! Sale ID: ${saleId.slice(-8)}`);
-    setCart([]);
-    setCustomerInfo({ name: "", phone: "" });
+    try {
+      // Create sale record
+      const saleData = {
+        items: cart.map(item => ({
+          product: item,
+          quantity: item.quantity,
+          total: item.price * item.quantity
+        })),
+        subtotal: getCartTotal(),
+        tax: getTax(),
+        total: getFinalTotal(),
+        customerName: customerInfo.name,
+        customerPhone: customerInfo.phone,
+        paymentMethod: paymentMethod
+      };
+      
+      // Add sale to database (this will also update inventory)
+      const saleId = await addSale(saleData);
+      
+      toast.success(`Payment processed via ${paymentMethod}! Sale ID: ${saleId.slice(-8)}`);
+      setCart([]);
+      setCustomerInfo({ name: "", phone: "" });
+    } catch (error) {
+      toast.error("Failed to process payment. Please try again.");
+      console.error('Checkout error:', error);
+    }
   };
 
   const clearCart = () => {
     setCart([]);
     toast.info("Cart cleared");
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-lg">Loading products...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-200px)]">
