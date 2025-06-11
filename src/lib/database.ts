@@ -214,7 +214,12 @@ class DatabaseService {
       throw error;
     }
     
-    return data || [];
+    // Cast the data to match our User interface types
+    return (data || []).map(user => ({
+      ...user,
+      role: user.role as 'admin' | 'staff' | 'customer',
+      status: user.status as 'active' | 'inactive'
+    }));
   }
 
   async addUser(user: Omit<User, 'id' | 'created_at' | 'last_login'>): Promise<User> {
@@ -229,7 +234,12 @@ class DatabaseService {
       throw error;
     }
     
-    return data;
+    // Cast the data to match our User interface types
+    return {
+      ...data,
+      role: data.role as 'admin' | 'staff' | 'customer',
+      status: data.status as 'active' | 'inactive'
+    };
   }
 
   async updateUser(id: number, updates: Partial<User>): Promise<User> {
@@ -245,7 +255,12 @@ class DatabaseService {
       throw error;
     }
     
-    return data;
+    // Cast the data to match our User interface types
+    return {
+      ...data,
+      role: data.role as 'admin' | 'staff' | 'customer',
+      status: data.status as 'active' | 'inactive'
+    };
   }
 
   async deleteUser(id: number): Promise<void> {
